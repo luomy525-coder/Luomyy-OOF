@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/media/:path*",
+      "destination": "https://8jryrlool9atf9hi.public.blob.vercel-storage.com/Luoomy/%E4%BD%9C%E5%93%81%E9%9B%86-%E5%85%AC%E5%BC%80%E5%8F%91%E5%B8%83%E7%89%88/media/:path*"
+    }
+  ]
+}
