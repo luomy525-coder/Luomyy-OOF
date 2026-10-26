@@ -16,6 +16,18 @@ videos:[{id:'m1',title:'影像手记 / 01',image:'night.jpg'},{id:'m2',title:'�
 cases:[{id:'c1',title:'品牌洞察与定位',subtitle:'BRAND RESEARCH / POSITIONING',image:'zero.jpg',tag:'商业分析'},{id:'c2',title:'从人群观察到内容策略',subtitle:'AUDIENCE / CONTENT STRATEGY',image:'number.jpg',tag:'内容策略'},{id:'c3',title:'一个活动的创意提案',subtitle:'CAMPAIGN / CREATIVE CONCEPT',image:'signal.jpg',tag:'创意策划'},{id:'c4',title:'从问题到增长假设',subtitle:'BUSINESS / GROWTH THINKING',image:'cat.jpg',tag:'商业分析'}].map(x=>({...x,demo:true,description:'案例结构示意，等待加入你的真实项目。'}))};
 let filter='all',currentCollection=[],currentIndex=0,db,toastTimer;const viewer=$('#viewer'),editor=$('#editor');
 function src(item){return item.url||item.resourceUrl||asset(item.image)}
+// Video assets are stored separately in the user's public Vercel Blob store.
+// Use their direct URLs to avoid relying on cross-origin video-range rewrites.
+const PUBLIC_VIDEO_BLOB_ROOT='https://8jryrlool9atf9hi.public.blob.vercel-storage.com/Luoomy/%E4%BD%9C%E5%93%81%E9%9B%86-%E5%85%AC%E5%BC%80%E5%8F%91%E5%B8%83%E7%89%88/media/';
+function videoMediaURL(item){
+  const input=String(item?.url||item?.resourceUrl||'').trim();
+  if(!input)return '';
+  if(/^(https?:|blob:|data:)/i.test(input))return input;
+  const relative=input.replace(/^\.?\//,'').split(/[?#]/)[0];
+  if(!relative.startsWith('media/'))return input;
+  return PUBLIC_VIDEO_BLOB_ROOT+relative.slice('media/'.length).split('/').map(s=>encodeURIComponent(s)).join('/');
+}
+
 function showToast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),3500)}
 function showDialog(dialog){dialog.showModal();document.body.classList.add('no-scroll')}
 for(const d of [viewer,editor]){d.querySelector('.close').addEventListener('click',()=>d.close());d.addEventListener('close',()=>{if(!viewer.open&&!editor.open)document.body.classList.remove('no-scroll');d.querySelectorAll('video').forEach(v=>v.pause());$('#contact-ticket').classList.remove('torn')});d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}})}
@@ -23,7 +35,7 @@ let socialFilter='all';
 function notesRender(){const list=data.notes.map((n,i)=>({n,i})).filter(({n})=>socialFilter==='all'||(n.platform||'小红书')===socialFilter);$('#notes-grid').innerHTML=list.map(({n,i})=>`<article class="post-card" data-note-index="${i}"><div class="post-top"><span>${esc(n.platform||'小红书')}</span><small>POST / ${String(i+1).padStart(2,'0')}</small></div><button class="post-shot" data-read="${i}" aria-label="查看帖子截图：${esc(n.title)}">${n.demo?`<img src="${esc(src(n))}" alt="截图位置的风格示意"><span class="shot-placeholder"><small>YOUR POST HERE</small><strong>放入你的<br>帖子截图</strong><em>原样保留点赞、评论与收藏</em><b>＋</b></span>`:`<span class="shot-window"><img src="${esc(src(n))}" alt="${esc(n.title)}的完整帖子截图" loading="lazy"></span><span class="shot-open">查看完整截图 ↗</span>`}</button><div class="post-bottom"><h3>${esc(n.title)}</h3><span>${n.demo?'截图待替换 / 编辑模式中添加':esc(n.description||'打开原图查看互动数据')}</span><button data-read="${i}" aria-label="放大帖子 ${i+1}">↗</button></div></article>`).join('');}
 function visualRender(){const items=data.visual.filter(n=>!n.removed&&(filter==='all'||n.tag===filter));$('#visual-grid').innerHTML=items.map(n=>`<button class="visual-card" data-visual="${esc(n.id)}" aria-label="放大：${esc(n.title)}"><div class="visual-image"><img src="${esc(src(n))}" alt="${esc(n.title)}" loading="lazy"></div><div class="v-caption"><span>${esc(n.title)}</span><small>${esc(categoryLabel(n.tag)||'新增作品')} / ${n.demo?'示意':'作品'}</small></div></button>`).join('');$('#visual-count').textContent=String(data.visual.filter(n=>!n.removed).length).padStart(2,'0');visualManageControls();}
 function photoRender(){$('#photo-grid').innerHTML=data.photos.map((n,i)=>`<button class="photo" data-photo="${i}" aria-label="查看照片 ${i+1}：${esc(n.title)}"><div class="photo-img"><img src="${esc(src(n))}" alt="${esc(n.title)}" loading="lazy"></div><div class="photo-caption"><span>${String(i+1).padStart(2,'0')} / ${esc(n.title)}</span><span>35MM ↗</span></div></button>`).join('');$('#photo-count').textContent=`${data.photos.length} FRAMES / PHOTO ARCHIVE`;}
-function videoRender(){$('#video-grid').innerHTML=data.videos.map((n,i)=>({n,i})).filter(({n})=>!n.removed).map(({n,i})=>{const cover=videoCover(n),playable=!!n.url;return `<article class="video-entry"><button class="video-card" data-video="${i}" aria-label="${playable?'播放：':'添加视频：'}${esc(n.title)}"><div class="video-thumb">${cover?`<img src="${esc(cover)}" alt="${esc(n.title)}的视频封面" loading="lazy">`:playable?`<video class="video-preview" src="${esc(n.url)}#t=0.1" preload="metadata" muted playsinline aria-hidden="true"></video>`:''}<span class="play">▷</span><small>${playable?'PERSONAL FILM':'YOUR FILM GOES HERE'}</small></div><div class="video-meta">${esc(n.title)}<span>${playable?'点击播放':'视频待加入'} ↗</span></div></button><div class="video-item-tools"><button data-video-edit="${esc(n.id)}">编辑视频</button><button data-video-cover="${esc(n.id)}">${data['video-covers'].some(c=>c.ownerId===n.id)?'替换封面':'上传封面'}</button><button data-video-remove="${esc(n.id)}">移除</button></div></article>`}).join('');videoManageControls()}
+function videoRender(){$('#video-grid').innerHTML=data.videos.map((n,i)=>({n,i})).filter(({n})=>!n.removed).map(({n,i})=>{const cover=videoCover(n),playable=!!n.url;return `<article class="video-entry"><button class="video-card" data-video="${i}" aria-label="${playable?'播放：':'添加视频：'}${esc(n.title)}"><div class="video-thumb">${cover?`<img src="${esc(cover)}" alt="${esc(n.title)}的视频封面" loading="lazy">`:playable?`<video class="video-preview" src="${esc(videoMediaURL(n))}#t=0.1" preload="none" muted playsinline aria-hidden="true" style="pointer-events:none"></video>`:''}<span class="play">▷</span><small>${playable?'PERSONAL FILM':'YOUR FILM GOES HERE'}</small></div><div class="video-meta">${esc(n.title)}<span>${playable?'点击播放':'视频待加入'} ↗</span></div></button><div class="video-item-tools"><button data-video-edit="${esc(n.id)}">编辑视频</button><button data-video-cover="${esc(n.id)}">${data['video-covers'].some(c=>c.ownerId===n.id)?'替换封面':'上传封面'}</button><button data-video-remove="${esc(n.id)}">移除</button></div></article>`}).join('');videoManageControls()}
 function videoCover(n){const cover=data['video-covers'].find(c=>c.ownerId===n.id);return cover?src(cover):!n.url&&n.image?asset(n.image):''}
 function caseRender(){orderPortfolioCases();$('#case-list').innerHTML=data.cases.map((n,i)=>`<article class="case ${n.originalProject?'case-original':''} ${n.originalProject==='meows-table'?'meows-case':''} ${n.originalProject==='jian-shan-qing'?'jian-case':''}"><button class="case-toggle" data-case="${i}" aria-expanded="false" aria-controls="case-body-${i}"><span class="case-num">${String(i+1).padStart(2,'0')}</span><img class="case-thumb ${n.originalProject?'original-cover':''}" ${n.originalProject?`data-original-cover="${esc(n.id)}" width="1672" height="941" fetchpriority="high"`:""} src="${esc(src(n))}" alt="${esc(n.alt||n.title)}" loading="${n.originalProject?'eager':'lazy'}"><span class="case-name"><strong>${esc(n.title)}</strong><small>${esc(n.subtitle||'PERSONAL PROJECT / CASE STUDY')}</small></span><span class="case-type">${esc(n.tag||'新增案例')}</span><span class="case-plus">＋</span></button><div class="case-body" id="case-body-${i}" hidden><p>${esc(n.description)}</p>${n.demo?'<div class="case-steps"><div class="case-step"><small>01 / QUESTION</small><h4>从什么问题出发</h4><p>项目背景、目标人群和核心挑战。这里将放入真实的研究问题与项目约束。</p></div><div class="case-step"><small>02 / INSIGHT</small><h4>如何形成判断</h4><p>信息来源、分析路径、关键发现，以及从发现到方案的推导。</p></div><div class="case-step"><small>03 / OUTCOME</small><h4>让想法落地</h4><p>个人职责、交付成果、效果与复盘。所有数据待真实项目补充。</p></div></div>':`<button class="line-button" data-case-image="${i}">放大案例封面 ↗</button>`}</div></article>`).join('');}
 function renderAll(){skillsRender();notesRender();visualRender();photoRender();videoRender();caseRender();copyRender()}
@@ -33,7 +45,36 @@ function shiftImage(dir){if(!currentCollection.length)return;currentIndex=(curre
 $('#prev-item').addEventListener('click',()=>shiftImage(-1));$('#next-item').addEventListener('click',()=>shiftImage(1));document.addEventListener('keydown',e=>{if(viewer.open&&currentCollection.length){if(e.key==='ArrowRight'){e.preventDefault();shiftImage(1)}if(e.key==='ArrowLeft'){e.preventDefault();shiftImage(-1)}}});
 function showContent(html){currentCollection=[];$('#viewer-body').innerHTML=html;$('.viewer-nav').hidden=true;if(!viewer.open)showDialog(viewer)}
 function readNote(i){const n=data.notes[i];showContent(`<div class="shot-reader"><div class="shot-info"><small>${esc(n.platform||'小红书')} / POST ARCHIVE</small><h2>${esc(n.title)}</h2><p>${esc(n.description||'截图中的点赞、收藏与评论将按原样展示。')}</p>${n.demo?'<p>当前为素材占位。开启编辑模式，点击这张卡片上传你的真实帖子截图。</p>':''}<button id="shot-zoom">切换原尺寸 / 适应屏幕 ↔</button></div><div class="shot-full"><img src="${esc(src(n))}" alt="${esc(n.title)}的完整截图"></div></div>`);$('#shot-zoom').addEventListener('click',()=>$('.shot-full').classList.toggle('original'));}
-function videoOpen(i){const n=data.videos[i];if(n.url){showContent(`<video src="${esc(n.url)}" ${videoCover(n)?`poster="${esc(videoCover(n))}"`:""} controls playsinline preload="metadata"></video><h2 class="viewer-title">${esc(n.title)}</h2><p class="viewer-description">${esc(n.description||'')}</p>`)}else{showContent(`<div class="empty-video"><p>NO FOOTAGE ATTACHED YET</p><h2>Your story,<br>in motion.</h2><p>这个位置留给你的剪辑作品。<br>加入真实视频后即可在这里播放，当前没有示例影片。</p><button id="add-video-now">选择我的视频 ＋</button></div>`);$('#add-video-now').addEventListener('click',()=>{viewer.close();openEditor('videos')})}}
+function videoOpen(i){
+  const n=data.videos[i];
+  if(!n)return;
+  const url=videoMediaURL(n);
+  if(!url){
+    showContent(`<div class="empty-video"><p>NO FOOTAGE ATTACHED YET</p><h2>${esc(n.title)}</h2><p>此视频暂时没有对应的文件地址。</p></div>`);
+    return;
+  }
+  const cover=videoCover(n);
+  showContent(`<div class="portfolio-video-player" style="width:100%;max-width:100%;">
+    <video class="portfolio-video-element" src="${esc(url)}" ${cover?`poster="${esc(cover)}"`:''} controls playsinline preload="metadata" style="display:block;width:100%;max-width:100%;max-height:72vh;background:#101820;" aria-label="${esc(n.title)}"></video>
+    <p class="video-playback-message" role="status" style="font-size:13px;margin:14px 0;">如视频没有自动播放，请点击播放器内的播放键。</p>
+    <p style="font-size:13px;margin:10px 0 20px;"><a class="video-direct-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">在新标签页打开原视频 ↗</a></p>
+    <h2 class="viewer-title">${esc(n.title)}</h2><p class="viewer-description">${esc(n.description||'')}</p>
+  </div>`);
+  const video=$('#viewer-body .portfolio-video-element');
+  const status=$('#viewer-body .video-playback-message');
+  if(!video)return;
+  video.addEventListener('playing',()=>{status.textContent='正在播放';},{once:true});
+  video.addEventListener('error',()=>{
+    status.textContent='无法解码或载入此视频。请先尝试下方「在新标签页打开原视频」；如果 MOV 无法播放，需要将原视频转换为 H.264 视频 / AAC 音频的 MP4 格式。';
+  });
+  try{
+    const playback=video.play();
+    if(playback&&typeof playback.catch==='function')playback.catch(error=>{
+      if(error?.name==='NotAllowedError')status.textContent='浏览器阻止了自动播放，请使用视频内的播放按钮。';
+      else if(error?.name!=='AbortError')status.textContent='未能自动播放；请使用播放器按钮，或下方链接打开原视频。若仍无法播放，请检查视频编码。';
+    });
+  }catch(_){status.textContent='请使用播放器按钮播放，或点击下方链接打开原视频。';}
+}
 document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;if(t.hasAttribute('data-note-flip')){let open=t.getAttribute('aria-pressed')!=='true';t.setAttribute('aria-pressed',open);t.closest('.note').classList.toggle('flipped',open)}if(t.hasAttribute('data-read'))readNote(+t.dataset.read);if(t.hasAttribute('data-visual')){const coll=data.visual.filter(n=>!n.removed&&(filter==='all'||n.tag===filter));viewImage(coll,coll.findIndex(n=>n.id===t.dataset.visual))}if(t.hasAttribute('data-photo'))viewImage(data.photos,+t.dataset.photo);if(t.hasAttribute('data-video'))videoOpen(+t.dataset.video);if(t.hasAttribute('data-case')){const open=t.getAttribute('aria-expanded')!=='true';t.setAttribute('aria-expanded',open);document.getElementById(t.getAttribute('aria-controls')).hidden=!open}if(t.hasAttribute('data-case-image'))viewImage(data.cases,+t.dataset.caseImage);if(t.hasAttribute('data-account'))showContent(`<p class="mono">SOCIAL CHANNEL</p><h2>${esc(t.dataset.account)}</h2><p class="viewer-description">账号链接待补充。下一版可以放入你的主页、账号定位和真实数据。</p>`);if(t.classList.contains('add-open'))openEditor(t.dataset.category||'photos');});
 $$('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;$$('[data-filter]').forEach(x=>{x.classList.toggle('active',x===b);x.setAttribute('aria-pressed',x===b)});visualRender()}));
 let film=false;function setView(value,flash=false){film=value==='film';$('#photo-grid').classList.toggle('film',film);$('#camera').setAttribute('aria-pressed',film);$('#camera>span').textContent=film?'再次按下 · 返回接触印样 ↗':'按下快门 · 展开胶卷 ↗';$$('[data-view]').forEach(b=>{let yes=b.dataset.view===value;b.classList.toggle('active',yes);b.setAttribute('aria-pressed',yes)});if(flash){$('#photo-grid').classList.remove('flash');requestAnimationFrame(()=>$('#photo-grid').classList.add('flash'))}}
@@ -247,3 +288,13 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
 
 // Public presentation: editing remains available in the separate original local file.
 document.addEventListener("click",e=>{if(e.target.closest(".owner-tools,.add-open,#edit-toolbar,#cover-change,#label-change,#portrait-change,#optical-photo-change,#skill-add,#sleeve-text-change,#wechat-qr-change,#contact-edit,.case-edit,[data-page-upload],[data-pages-add],[data-original-backup],.copy-controls,[data-copy-edit],[data-copy-upload],[data-copy-replace],[data-copy-remove],[data-copy-image-remove],[data-copy-recover],.video-item-tools,#video-restore,#visual-management,#add-video-now,[data-skill]")){e.preventDefault();e.stopImmediatePropagation();}},true);
+
+// Reliable click + keyboard activation for published video cards.
+// Run in capture phase so the legacy page's generic click delegate cannot swallow a video click.
+document.addEventListener('click',function(event){
+  const card=event.target.closest?.('#video-grid .video-card[data-video]');
+  if(!card)return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  videoOpen(Number(card.dataset.video));
+},true);
