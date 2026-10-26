@@ -35,7 +35,46 @@ let socialFilter='all';
 function notesRender(){const list=data.notes.map((n,i)=>({n,i})).filter(({n})=>socialFilter==='all'||(n.platform||'小红书')===socialFilter);$('#notes-grid').innerHTML=list.map(({n,i})=>`<article class="post-card" data-note-index="${i}"><div class="post-top"><span>${esc(n.platform||'小红书')}</span><small>POST / ${String(i+1).padStart(2,'0')}</small></div><button class="post-shot" data-read="${i}" aria-label="查看帖子截图：${esc(n.title)}">${n.demo?`<img src="${esc(src(n))}" alt="截图位置的风格示意"><span class="shot-placeholder"><small>YOUR POST HERE</small><strong>放入你的<br>帖子截图</strong><em>原样保留点赞、评论与收藏</em><b>＋</b></span>`:`<span class="shot-window"><img src="${esc(src(n))}" alt="${esc(n.title)}的完整帖子截图" loading="lazy"></span><span class="shot-open">查看完整截图 ↗</span>`}</button><div class="post-bottom"><h3>${esc(n.title)}</h3><span>${n.demo?'截图待替换 / 编辑模式中添加':esc(n.description||'打开原图查看互动数据')}</span><button data-read="${i}" aria-label="放大帖子 ${i+1}">↗</button></div></article>`).join('');}
 function visualRender(){const items=data.visual.filter(n=>!n.removed&&(filter==='all'||n.tag===filter));$('#visual-grid').innerHTML=items.map(n=>`<button class="visual-card" data-visual="${esc(n.id)}" aria-label="放大：${esc(n.title)}"><div class="visual-image"><img src="${esc(src(n))}" alt="${esc(n.title)}" loading="lazy"></div><div class="v-caption"><span>${esc(n.title)}</span><small>${esc(categoryLabel(n.tag)||'新增作品')} / ${n.demo?'示意':'作品'}</small></div></button>`).join('');$('#visual-count').textContent=String(data.visual.filter(n=>!n.removed).length).padStart(2,'0');visualManageControls();}
 function photoRender(){$('#photo-grid').innerHTML=data.photos.map((n,i)=>`<button class="photo" data-photo="${i}" aria-label="查看照片 ${i+1}：${esc(n.title)}"><div class="photo-img"><img src="${esc(src(n))}" alt="${esc(n.title)}" loading="lazy"></div><div class="photo-caption"><span>${String(i+1).padStart(2,'0')} / ${esc(n.title)}</span><span>35MM ↗</span></div></button>`).join('');$('#photo-count').textContent=`${data.photos.length} FRAMES / PHOTO ARCHIVE`;}
-function videoRender(){$('#video-grid').innerHTML=data.videos.map((n,i)=>({n,i})).filter(({n})=>!n.removed).map(({n,i})=>{const cover=videoCover(n),playable=!!n.url;return `<article class="video-entry"><button class="video-card" data-video="${i}" aria-label="${playable?'播放：':'添加视频：'}${esc(n.title)}"><div class="video-thumb">${cover?`<img src="${esc(cover)}" alt="${esc(n.title)}的视频封面" loading="lazy">`:playable?`<video class="video-preview" src="${esc(videoMediaURL(n))}#t=0.1" preload="none" muted playsinline aria-hidden="true" style="pointer-events:none"></video>`:''}<span class="play">▷</span><small>${playable?'PERSONAL FILM':'YOUR FILM GOES HERE'}</small></div><div class="video-meta">${esc(n.title)}<span>${playable?'点击播放':'视频待加入'} ↗</span></div></button><div class="video-item-tools"><button data-video-edit="${esc(n.id)}">编辑视频</button><button data-video-cover="${esc(n.id)}">${data['video-covers'].some(c=>c.ownerId===n.id)?'替换封面':'上传封面'}</button><button data-video-remove="${esc(n.id)}">移除</button></div></article>`}).join('');videoManageControls()}
+// On the public site the video files are remote MOV / MP4 files. The former
+// preview deliberately used preload="none", so the browser never decoded a
+// still frame for the thumbnail. Load only visible previews and seek to an
+// actual frame, without starting playback or changing the video click flow.
+
+// Enforce a proper thumbnail layer without affecting the page's grid or cards.
+(function(){const style=document.createElement('style');style.textContent='#video-grid .video-thumb{position:relative;overflow:hidden}#video-grid .video-thumb>.video-preview{z-index:0}#video-grid .video-thumb>.play,#video-grid .video-thumb>small{z-index:2}';document.head.appendChild(style)})();
+function initializeVideoPreviews(){
+  const previews=$$('#video-grid .video-preview');
+  const loadPreview=(preview)=>{
+    if(preview.dataset.previewLoading)return;
+    preview.dataset.previewLoading='1';
+    preview.muted=true;
+    preview.playsInline=true;
+    preview.preload='metadata';
+    preview.addEventListener('loadedmetadata',()=>{
+      // Early first frames can be black; a moment into the clip works better.
+      const duration=preview.duration;
+      const time=Number.isFinite(duration)&&duration>0
+        ?Math.min(Math.max(duration*.08,1.0),2.5,Math.max(duration-.1,0))
+        :1.0;
+      try { if(time>0 && Math.abs(preview.currentTime-time)>.25)preview.currentTime=time; }
+      catch(_){ /* Keep the browser's first available frame. */ }
+    },{once:true});
+    preview.addEventListener('error',()=>{
+      // A missing thumbnail must not interfere with opening/playing the video.
+      preview.style.display='none';
+    },{once:true});
+    preview.load();
+  };
+  if('IntersectionObserver' in window){
+    const observer=new IntersectionObserver((entries)=>{
+      for(const entry of entries){
+        if(entry.isIntersecting){observer.unobserve(entry.target);loadPreview(entry.target)}
+      }
+    },{rootMargin:'160px 0px'});
+    previews.forEach(preview=>observer.observe(preview));
+  }else previews.forEach(loadPreview);
+}
+function videoRender(){$('#video-grid').innerHTML=data.videos.map((n,i)=>({n,i})).filter(({n})=>!n.removed).map(({n,i})=>{const cover=videoCover(n),playable=!!n.url;return `<article class="video-entry"><button class="video-card" data-video="${i}" aria-label="${playable?'播放：':'添加视频：'}${esc(n.title)}"><div class="video-thumb">${cover?`<img src="${esc(cover)}" alt="${esc(n.title)}的视频封面" loading="lazy">`:playable?`<video class="video-preview" src="${esc(videoMediaURL(n))}#t=1" preload="metadata" muted playsinline aria-hidden="true" style="pointer-events:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video>`:''}<span class="play">▷</span><small>${playable?'PERSONAL FILM':'YOUR FILM GOES HERE'}</small></div><div class="video-meta">${esc(n.title)}<span>${playable?'点击播放':'视频待加入'} ↗</span></div></button><div class="video-item-tools"><button data-video-edit="${esc(n.id)}">编辑视频</button><button data-video-cover="${esc(n.id)}">${data['video-covers'].some(c=>c.ownerId===n.id)?'替换封面':'上传封面'}</button><button data-video-remove="${esc(n.id)}">移除</button></div></article>`}).join('');videoManageControls();initializeVideoPreviews()}
 function videoCover(n){const cover=data['video-covers'].find(c=>c.ownerId===n.id);return cover?src(cover):!n.url&&n.image?asset(n.image):''}
 function caseRender(){orderPortfolioCases();$('#case-list').innerHTML=data.cases.map((n,i)=>`<article class="case ${n.originalProject?'case-original':''} ${n.originalProject==='meows-table'?'meows-case':''} ${n.originalProject==='jian-shan-qing'?'jian-case':''}"><button class="case-toggle" data-case="${i}" aria-expanded="false" aria-controls="case-body-${i}"><span class="case-num">${String(i+1).padStart(2,'0')}</span><img class="case-thumb ${n.originalProject?'original-cover':''}" ${n.originalProject?`data-original-cover="${esc(n.id)}" width="1672" height="941" fetchpriority="high"`:""} src="${esc(src(n))}" alt="${esc(n.alt||n.title)}" loading="${n.originalProject?'eager':'lazy'}"><span class="case-name"><strong>${esc(n.title)}</strong><small>${esc(n.subtitle||'PERSONAL PROJECT / CASE STUDY')}</small></span><span class="case-type">${esc(n.tag||'新增案例')}</span><span class="case-plus">＋</span></button><div class="case-body" id="case-body-${i}" hidden><p>${esc(n.description)}</p>${n.demo?'<div class="case-steps"><div class="case-step"><small>01 / QUESTION</small><h4>从什么问题出发</h4><p>项目背景、目标人群和核心挑战。这里将放入真实的研究问题与项目约束。</p></div><div class="case-step"><small>02 / INSIGHT</small><h4>如何形成判断</h4><p>信息来源、分析路径、关键发现，以及从发现到方案的推导。</p></div><div class="case-step"><small>03 / OUTCOME</small><h4>让想法落地</h4><p>个人职责、交付成果、效果与复盘。所有数据待真实项目补充。</p></div></div>':`<button class="line-button" data-case-image="${i}">放大案例封面 ↗</button>`}</div></article>`).join('');}
 function renderAll(){skillsRender();notesRender();visualRender();photoRender();videoRender();caseRender();copyRender()}
