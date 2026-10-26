@@ -1,4 +1,4 @@
-'use strict';
+ss'use strict';
 const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const asset=name=>(window.PORTFOLIO_ASSETS||{})[name]||`assets/${name}`;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
